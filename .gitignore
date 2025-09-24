@@ -1,0 +1,11 @@
+# This file is generate by gwctl
+
+# Ignore generated certificates for local development environments
+certs
+**/certs
+
+# Ignore encryption private key file
+keys.txt
+
+# Ignore local env files
+.env

@@ -1,0 +1,363 @@
+flux:
+  interval: 2m
+  rollback:
+    cleanupOnFail: false
+
+networkPolicies:
+  enabled: false
+
+kiali:
+  enabled: false
+
+istio:
+  sourceType: helmRepo
+  enabled: true
+
+istioOperator:
+  sourceType: helmRepo
+  enabled: true
+
+monitoring:
+  sourceType: helmRepo
+  enabled: true
+  values:
+    prometheus:
+      prometheusSpec:
+        resources:
+          requests:
+            cpu: 200m
+            memory: 1Gi
+
+loki:
+  sourceType: helmRepo
+  enabled: true
+  strategy: scalable
+  values:
+    minio:
+      enabled: true
+    write:
+      replicas: 1
+      persistence:
+        size: 2Gi
+      resources:
+        limits:
+          cpu: 200m
+          memory: 400Mi
+        requests:
+          cpu: 200m
+          memory: 400Mi
+    read:
+      replicas: 1
+      persistence:
+        size: 2Gi
+      resources:
+        limits:
+          cpu: 200m
+          memory: 400Mi
+        requests:
+          cpu: 200m
+          memory: 400Mi
+    extraObjects:
+    - apiVersion: "security.istio.io/v1beta1"
+      kind: PeerAuthentication
+      metadata:
+        name: loki-minio-endpoint-exception
+        namespace: logging
+      spec:
+        mtls:
+          mode: PERMISSIVE
+        selector:
+          matchLabels:
+            app: minio
+        portLevelMtls:
+          "9000":
+            mode: PERMISSIVE
+promtail:
+  sourceType: helmRepo
+  enabled: true
+
+kyverno:
+  sourceType: helmRepo
+  enabled: true
+
+kyvernoPolicies:
+  sourceType: helmRepo
+  enabled: true
+  values:
+    policies:
+      restrict-volume-types:
+        validationFailureAction: Audit
+      restrict-image-registries:
+        validationFailureAction: Audit
+      restrict-host-path-write:
+        validationFailureAction: Audit
+      restrict-host-path-mount:
+        validationFailureAction: Audit
+      require-non-root-user:
+        validationFailureAction: Audit
+      require-non-root-group:
+        validationFailureAction: Audit
+      disallow-privileged-containers:
+        validationFailureAction: Audit
+      require-drop-all-capabilities:
+        validationFailureAction: Audit
+      restrict-host-path-mount-pv:
+        validationFailureAction: Audit
+      add-default-securitycontext:
+        exclude:
+          any:
+          - resources:
+              namespaces:
+                - local-path-storage
+     # add-default-capability-drop:
+     #   exclude:
+     #     any:
+     #       - resources:
+     #         namespaces:
+     #           - cilium
+
+neuvector:
+  sourceType: helmRepo
+  enabled: false
+  values:
+    k3s:
+      enabled: true
+
+sso:
+  client_id: il2_eb21db65-3118-4017-bfe7-86829038d3dc_apps
+  client_secret: "123456789a"
+  name: SSO
+  url: https://login.gw.local/auth/realms/gamewarden
+  # certificateAuthority:
+  #   cert: |
+  #
+  #     -----BEGIN CERTIFICATE-----#     
+  #     MIIE5TCCAs2gAwIBAgIBAjANBgkqhkiG9w0BAQsFADAXMRUwEwYDVQQDEwxMb2Nh#     
+  #     bCBEZXYgQ0EwHhcNMjUwOTI0MTczNzA4WhcNMjcwOTI0MTczNzA4WjAVMRMwEQYD#     
+  #     VQQDDAoqLmd3LmxvY2FsMIICIjANBgkqhkiG9w0BAQEFAAOCAg8AMIICCgKCAgEA#     
+  #     8ReOLZtaoIkFB+9GMA7sg8lJ40rhJ/UkR5rgc/njtmcMgJGmt5rtnMNL6maO+eJf#     
+  #     gjAyWYPuY+ApvCgna6c40EK19XKkPyifP+4CfzXQHX0o6DFH+k4TTLRhicb6M6IB#     
+  #     uawQDMEmLlx5Sv/0yteRgbMPh/nyO8DCX0QZeDba5FzgOyarrcJzFvqWjnDNVq+1#     
+  #     Iu6MXHfUUDM0iuPbkTr3pj9KfTNXuVU5+s8b7anFeV3uvBwELnCaJn14YJJQXI88#     
+  #     C8HCrFW4rhQOcdq6LUQuzXPeGP51PgHgcKiMPcctQX/3eKBH9Yd3zXGCiWf/hEOA#     
+  #     /N1ZJYZ8f+TXcu5WYDOh+ztHmiTvC7jKDyQ5EFtH/WP05kuZr1KKzUK3GpafcsSl#     
+  #     QcW1s6DDA7gdYhyYT9kDsLjCeuhp8wwNBV4aH41Qoorj8jlc8Qjrf1Nu/wkl067S#     
+  #     pH3/Fl7jlJN+srIoP5ruZDfxTQwVO8ZXPk5MGZffzk4mDuT9XW+1qm+RL/TBntv2#     
+  #     O/H/5eSzGCxeV1WbJT1zJn/qp2V+klW9+zVOwzNogJeIFGV4lxGfjvDk+jkhHfwX#     
+  #     AAoNJd0IwAE4A/9ka9OHBkpXiZaDDoqGHPG2/qygw9Fy0WEI8nrIKiq8lXFw01xy#     
+  #     kizIuzxKSVY4hpmJdYsgjZavnk5Dx0wugtTVJ+sCMUECAwEAAaM+MDwwDgYDVR0P#     
+  #     AQH/BAQDAgWgMBMGA1UdJQQMMAoGCCsGAQUFBwMBMBUGA1UdEQQOMAyCCiouZ3cu#     
+  #     bG9jYWwwDQYJKoZIhvcNAQELBQADggIBAHCmLAtQFPjbu63SiMzT9mr29q6B1BHg#     
+  #     +wBkbyxYwDiOS2cQb29eCTnEGmbA4FeZTTX8KbHHUHKhBFsVY8cxgQTHiUqfYzc5#     
+  #     pkpAoZ9hnxnfYPOZ4e6cEVWFYFHpWHMUv84x+qZm1MZDghJviaIXvBSJUfBtixoN#     
+  #     4ncyTLu20yd/Li7kgmkmJyMwNbTVhk7Olte/cVZZoB9IL9o7nK29NcjALydllOJR#     
+  #     J/u1452ikZYCk3sFAuaedGhmnCvF0NZkLSuUUmf4ut3X/tuc61UUS9cqlOwE9N7N#     
+  #     boyY4VZ967lqi5qF+nkNCY2oc+v0e70U0aPFVgmDSvAGixVRn80oOD1Z3BtD0PmT#     
+  #     R67+muluL+uvI2zzi638JkaHJPTZKhtMKLeCkF4t8+A6g+J6FApLvKImGaUTaCD7#     
+  #     8HplDJWAU82Aa0KkeRZ3soZ+ilbp3eADFBzUIa0rIhgRaqYmv1FjgtNnKfg/Lvcy#     
+  #     eqto0Dgm5Zys/iMJZD+odD/SnvFiUgez3xVQC+00HA0ecNGVMgdUTamjDsx4HdBp#     
+  #     RhgAIJgbTImF8699v5o21hh4JOsN3YuwpbxcMGCs3HRu3ijr1KCn0C23kbD5RclL#     
+  #     G35qu5wXQ4NCNkMM7Zz2PfewHfMt9nhXkfjs/D4NWwKt7dVz5dbA5cN30iHj14ZT#     
+  #     7n6NiYWkMkbU#     
+  #     -----END CERTIFICATE-----#     
+
+grafana:
+  values:
+    grafana.ini:
+      auth.generic_oauth:
+        api_url: "https://login.gw.local/auth/realms/gamewarden/protocol/openid-connect/userinfo"
+        auth_url: "https://login.gw.local/auth/realms/gamewarden/protocol/openid-connect/auth"
+        client_id: "il2_eb21db65-3118-4017-bfe7-86829038d3dc_apps" #gitleaks:allow
+        client_secret: "123456789a"
+        enabled: true
+        groups_attribute_path: "groups"
+        name: "Game Warden SSO"
+        role_attribute_path: "contains(groups[*], '/Gamewarden/grafana-server-admin') && 'GrafanaAdmin' || contains(groups[*], '/Gamewarden/grafana-admin') && 'Admin' || 'Viewer'"
+        role_attribute_strict: true
+        scopes: "openid profile email grafana"
+        token_url: "https://login.gw.local/auth/realms/gamewarden/protocol/openid-connect/token"
+
+
+addons:
+  authservice:
+    enabled: true
+    chains:
+      APP:
+        callback_uri: https://APP.gw.local/oauth_callback
+        client_id: il2_eb21db65-3118-4017-bfe7-86829038d3dc_apps
+        client_secret: "123456789a"
+        match:
+          prefix: "APP.gw.local"
+  argocd:
+    enabled: true
+    sso:
+      client_id: "il2_eb21db65-3118-4017-bfe7-86829038d3dc_apps" #gitleaks:allow
+      client_secret: "123456789a"
+      enabled: true
+    values:
+      server:
+        extraArgs:
+        - --insecure
+        - --repo-server-plaintext
+      repoServer:
+        extraArgs:
+        - --disable-tls
+      controller:
+        extraArgs:
+        - --repo-server-plaintext
+      redis-bb:
+        networkPolicy:
+          enabled: false
+
+  keycloak:
+    enabled: true
+    postRenderers:
+      - kustomize:
+          patchesStrategicMerge:
+            - apiVersion: v1
+              kind: Service
+              metadata:
+                name: keycloak-headless
+                namespace: keycloak
+              spec:
+                ports:
+                  - name: tcp
+                    port: 7800
+                    protocol: TCP
+                    targetPort: tcp
+                  - name: tcp-fd
+                    port: 57800
+                    protocol: TCP
+                    targetPort: tcp-fd
+      - kustomize:
+          patchesStrategicMerge:
+            - apiVersion: networking.istio.io/v1
+              kind: VirtualService
+              metadata:
+                name: keycloak
+                namespace: keycloak
+              spec:
+                tls: null
+    values:
+      serviceAccount:
+        automountServiceAccountToken: false
+      replicas: 1
+      args:
+        - "start-dev"
+        - --import-realm
+      extraEnv: |-
+        - name: KC_HTTPS_CLIENT_AUTH
+          value: request
+        - name: KC_HOSTNAME
+          value: login.gw.local
+        - name: KC_LOG_LEVEL
+          value: "org.keycloak.events:DEBUG,org.infinispan:INFO,org.jgroups:INFO"
+        - name: QUARKUS_HTTP_ACCESS_LOG_ENABLED
+          value: "true"
+        - name: KC_HOSTNAME_STRICT
+          value: "false"
+        - name: KC_HOSTNAME_STRICT_HTTPS
+          value: "false"
+        - name: KC_SPI_X509CERT_LOOKUP_PROVIDER
+          value: nginx
+        - name: KC_SPI_X509CERT_LOOKUP_NGINX_SSL_CLIENT_CERT
+          value: istio-mtls-client-certificate
+        - name: KC_SPI_X509CERT_LOOKUP_NGINX_SSL_CLIENT_CERT_CHAIN_PREFIX
+          value: UNUSED
+        - name: KC_PROXY_HEADERS
+          value: xforwarded
+        - name: KC_PROXY_ADDRESS_FORWARDING
+          value: "true"
+        - name: KC_HTTP_ENABLED
+          value: "true"
+        - name: QUANTUM_EMITTER_NATS_SERVER
+          value: nats
+      extraInitContainers: |-
+        - name: plugin
+          image: registry1.dso.mil/ironbank/big-bang/p1-keycloak-plugin:3.5.7
+          command:
+          - sh
+          - -c
+          - |
+            cp /app/p1-keycloak-plugin.jar /init
+            ls -l /init
+          securityContext:
+            capabilities:
+              drop:
+                - ALL
+          volumeMounts:
+          - name: plugin
+            mountPath: "/init"
+      extraPorts:
+        - containerPort: 7800
+          name: tcp
+          protocol: TCP
+        - containerPort: 57800
+          name: tcp-fd
+          protocol: TCP
+      extraVolumeMounts: |-
+        - name: plugin
+          mountPath: /opt/keycloak/providers/p1-keycloak-plugin.jar
+          subPath: p1-keycloak-plugin.jar
+        - name: quarkusproperties
+          mountPath: /opt/keycloak/conf/quarkus.properties
+          subPath: quarkus.properties
+        - name: realm
+          mountPath: /opt/keycloak/data/import/realm.json
+          subPath: realm.json
+          readOnly: true
+      extraVolumes: |-
+        - name: plugin
+          emptyDir: {}
+        - name: quarkusproperties
+          secret:
+            secretName: keycloak-quarkusproperties
+            defaultMode: 0777
+        - name: realm
+          configMap:
+            name: gamewarden-realm
+      hostname: gw.local
+      istio:
+        enabled: true
+        keycloak:
+          gateways:
+            - istio-system/public
+          hosts:
+            - login.gw.local
+      proxy:
+        mode: xforwarded
+      secrets:
+        env:
+          stringData:
+            JAVA_OPTS_APPEND: -Djgroups.dns.query=keycloak-headless.keycloak.svc.cluster.local
+        quarkusproperties:
+          stringData:
+            quarkus.properties: |-
+              quarkus.http.non-application-root-path=/
+              quarkus.kc-routing.path-redirect./=/auth/realms/gamewarden/account
+              quarkus.kc-routing.path-redirect./auth=/auth/realms/gamewarden/account
+              quarkus.kc-routing.path-redirect./register=/auth/realms/gamewarden/protocol/openid-connect/registrations?client_id=account&response_type=code
+              quarkus.kc-routing.path-prefix./oauth/authorize=/auth/realms/gamewarden/protocol/openid-connect/auth
+              quarkus.kc-routing.path-filter./api/v4/user=/auth/realms/gamewarden/protocol/openid-connect/userinfo
+              quarkus.kc-routing.path-filter./oauth/token=/auth/realms/gamewarden/protocol/openid-connect/token
+              quarkus.kc-routing.path-recursive-block./metrics=8443
+              quarkus.kc-routing.path-recursive-block./health=8443
+              quarkus.http.cors=true
+              quarkus.http.cors.methods=OPTIONS,POST,GET,PATCH,PUT,DELETE
+              quarkus.http.cors.headers=Content-Disposition,Access-Control-Allow-Headers,Content-Type,Authorization,X-Requested-With
+              quarkus.http.cors.access-control-max-age=24H
+              quarkus.http.cors.access-control-allow-credentials=true
+              quarkus.http.cors.origins=*
+      service:
+        extraPorts: null
+        httpPort: 8080
+  metricsServer:
+    sourceType: helmRepo
+    enabled: auto
+    values:
+      args:
+      - --kubelet-insecure-tls
+
+  minioOperator:
+    sourceType: helmRepo
+    enabled: true

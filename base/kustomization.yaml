@@ -1,0 +1,27 @@
+configMapGenerator:
+- behavior: merge
+  files:
+  - values.yaml=configmap.yaml
+  name: common
+
+resources:
+- https://repo1.dso.mil/platform-one/big-bang/bigbang.git/base?ref=2.47.0
+- helmrepo.yaml
+- cosignsecret.yaml
+
+patches:
+- path: secret.enc.yaml
+- patch: |-
+    apiVersion: helm.toolkit.fluxcd.io/v2
+    kind: HelmRelease
+    metadata:
+      name: bigbang
+    spec:
+      interval: 1m
+      chart:
+        spec:
+          chart: bigbang
+          version: 2.47.0
+          sourceRef:
+            kind: HelmRepository
+            name: registry1

@@ -1,0 +1,9 @@
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: keycloak
+  annotations:
+    meta.helm.sh/release-name: bigbang
+    meta.helm.sh/release-namespace: bigbang
+  labels:
+    app.kubernetes.io/managed-by: Helm
