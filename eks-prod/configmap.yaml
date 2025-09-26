@@ -1,0 +1,229 @@
+flux:
+  interval: 2m
+  rollback:
+    cleanupOnFail: false
+
+# Network policies work well with Cilium
+networkPolicies:
+  enabled: true
+
+# Core platform components
+istio:
+  sourceType: helmRepo
+  enabled: true
+  values:
+    # AWS-specific Istio configurations
+    meshConfig:
+      defaultConfig:
+        proxyStatsMatcher:
+          inclusionRegexps:
+          - ".*outlier_detection.*"
+          - ".*osconfig.*"
+          - ".*rbac.*"
+    gateways:
+      istio-ingressgateway:
+        serviceAnnotations:
+          # Use AWS NLB for better performance
+          service.beta.kubernetes.io/aws-load-balancer-type: "nlb"
+          service.beta.kubernetes.io/aws-load-balancer-cross-zone-load-balancing-enabled: "true"
+          service.beta.kubernetes.io/aws-load-balancer-backend-protocol: "tcp"
+
+istioOperator:
+  sourceType: helmRepo
+  enabled: true
+
+monitoring:
+  sourceType: helmRepo
+  enabled: true
+  values:
+    prometheus:
+      prometheusSpec:
+        storageSpec:
+          volumeClaimTemplate:
+            spec:
+              # Use EBS gp3 storage class
+              storageClassName: gp3
+              accessModes: ["ReadWriteOnce"]
+              resources:
+                requests:
+                  storage: 50Gi
+        resources:
+          requests:
+            cpu: 500m
+            memory: 2Gi
+          limits:
+            cpu: 2000m
+            memory: 4Gi
+    grafana:
+      persistence:
+        enabled: true
+        storageClassName: gp3
+        size: 10Gi
+
+loki:
+  sourceType: helmRepo
+  enabled: true
+  strategy: scalable
+  values:
+    # Use S3 for Loki storage instead of MinIO
+    loki:
+      storage:
+        type: s3
+        s3:
+          endpoint: s3.amazonaws.com
+          region: us-east-1  # Update to your region
+          bucketnames: gamewarden-loki-storage  # Create this bucket
+          insecure: false
+          s3forcepathstyle: false
+    # Disable MinIO since we're using S3
+    minio:
+      enabled: false
+    write:
+      replicas: 2
+      persistence:
+        storageClass: gp3
+        size: 10Gi
+      resources:
+        requests:
+          cpu: 500m
+          memory: 1Gi
+        limits:
+          cpu: 1000m
+          memory: 2Gi
+    read:
+      replicas: 2
+      persistence:
+        storageClass: gp3
+        size: 10Gi
+      resources:
+        requests:
+          cpu: 500m
+          memory: 1Gi
+        limits:
+          cpu: 1000m
+          memory: 2Gi
+    backend:
+      replicas: 2
+      persistence:
+        storageClass: gp3
+        size: 10Gi
+
+promtail:
+  sourceType: helmRepo
+  enabled: true
+
+kyverno:
+  sourceType: helmRepo
+  enabled: true
+
+kyvernoPolicies:
+  sourceType: helmRepo
+  enabled: true
+  values:
+    policies:
+      # More permissive for initial deployment
+      restrict-volume-types:
+        validationFailureAction: Audit
+      restrict-image-registries:
+        validationFailureAction: Audit
+      restrict-host-path-write:
+        validationFailureAction: Audit
+      restrict-host-path-mount:
+        validationFailureAction: Audit
+      require-non-root-user:
+        validationFailureAction: Audit
+      require-non-root-group:
+        validationFailureAction: Audit
+      disallow-privileged-containers:
+        validationFailureAction: Audit
+      require-drop-all-capabilities:
+        validationFailureAction: Audit
+
+# SSO Configuration - Update these for your environment
+sso:
+  client_id: gamewarden-eks-client
+  client_secret: "CHANGE_ME_TO_SECURE_SECRET"
+  name: SSO
+  url: https://login.gamewarden.example.com/auth/realms/gamewarden
+  certificateAuthority:
+    cert: |
+      # Add your CA certificate here if using self-signed certs
+
+# Grafana SSO Configuration
+addons:
+  grafana:
+    grafana.ini:
+      auth.generic_oauth:
+        api_url: "https://login.gamewarden.example.com/auth/realms/gamewarden/protocol/openid-connect/userinfo"
+        auth_url: "https://login.gamewarden.example.com/auth/realms/gamewarden/protocol/openid-connect/auth"
+        client_id: "grafana-client"
+        client_secret: "CHANGE_ME_TO_SECURE_SECRET"
+        enabled: true
+        groups_attribute_path: "groups"
+        name: "Game Warden SSO"
+        role_attribute_path: "contains(groups[*], '/Gamewarden/grafana-server-admin') && 'GrafanaAdmin' || contains(groups[*], '/Gamewarden/grafana-admin') && 'Admin' || 'Viewer'"
+        role_attribute_strict: true
+        scopes: "openid profile email grafana"
+        token_url: "https://login.gamewarden.example.com/auth/realms/gamewarden/protocol/openid-connect/token"
+
+# Keycloak Configuration
+keycloak:
+  sourceType: helmRepo
+  enabled: true
+  values:
+    replicas: 2
+    resources:
+      requests:
+        cpu: 500m
+        memory: 1Gi
+      limits:
+        cpu: 2000m
+        memory: 2Gi
+    persistence:
+      deployPostgres: true
+    database:
+      storageClass: gp3
+      size: 20Gi
+    volumeMounts:
+      - mountPath: /opt/keycloak/data/import
+        name: realm
+    volumes:
+      - name: realm
+        configMap:
+          name: gamewarden-realm
+    # Update hostname for your domain
+    hostname: gamewarden.example.com
+    istio:
+      enabled: true
+      gateways:
+        - istio-system/public
+    domain: gamewarden.example.com
+    extraInitContainers: |
+      - name: import
+        image: registry1.dso.mil/ironbank/opensource/keycloak/keycloak:25.0.6
+        command:
+          - /opt/keycloak/bin/kc.sh
+          - import
+          - --dir=/opt/keycloak/data/import
+        volumeMounts:
+          - mountPath: /opt/keycloak/data/import
+            name: realm
+    command:
+      - /opt/keycloak/bin/kc.sh
+      - start
+      - --import-realm
+    istioResources:
+      virtualServices:
+        - name: main
+          port: 8443
+          tls: true
+      peerAuthentications:
+        - name: keycloak
+          mode: DISABLE
+    extraEnvVars:
+      - name: KEYCLOAK_PROXY_HEADERS
+        value: xforwarded
+      - name: KEYCLOAK_HOSTNAME_STRICT
+        value: "false"
+      - name: KEYCLOAK_HTTP_ENABLED
+        value: "true"

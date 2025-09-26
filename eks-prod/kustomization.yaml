@@ -1,0 +1,32 @@
+configMapGenerator:
+- behavior: merge
+  files:
+  - values.yaml=configmap.yaml
+  name: environment
+- files:
+  - realm.json=realm.json
+  name: gamewarden-realm
+  namespace: keycloak
+  options:
+    disableNameSuffixHash: true
+
+resources:
+- ns-keycloak.yaml
+- storageclass.yaml
+- ../base
+
+patches:
+- patch: |-
+    apiVersion: source.toolkit.fluxcd.io/v1
+    kind: GitRepository
+    metadata:
+      name: bigbang
+    spec:
+      interval: 1m
+- patch: |-
+    apiVersion: helm.toolkit.fluxcd.io/v2
+    kind: HelmRelease
+    metadata:
+      name: bigbang
+    spec:
+      interval: 1m
