@@ -166,64 +166,103 @@ addons:
         scopes: "openid profile email grafana"
         token_url: "https://login.gamewarden.eaglevalley.dev/auth/realms/gamewarden/protocol/openid-connect/token"
 
-# Keycloak Configuration
-keycloak:
-  sourceType: helmRepo
-  enabled: true
-  values:
-    replicas: 2
-    resources:
-      requests:
-        cpu: 500m
-        memory: 1Gi
-      limits:
-        cpu: 2000m
-        memory: 2Gi
-    persistence:
-      deployPostgres: true
-    database:
-      storageClass: gp3
-      size: 20Gi
-    volumeMounts:
-      - mountPath: /opt/keycloak/data/import
-        name: realm
-    volumes:
-      - name: realm
-        configMap:
-          name: gamewarden-realm
-    # Update hostname for your domain
-    hostname: gamewarden.example.com
-    istio:
+  authservice:
+    enabled: true
+    chains:
+      APP:
+        callback_uri: https://APP.gw.eaglevalley.dev/oauth_callback
+        client_id: il2_eb21db65-3118-4017-bfe7-86829038d3dc_apps
+        client_secret: "123456789a"
+        match:
+          prefix: "APP.gw.eaglevalley.dev"
+  argocd:
+    enabled: true
+    sso:
+      client_id: "il2_eb21db65-3118-4017-bfe7-86829038d3dc_apps" #gitleaks:allow
+      client_secret: "123456789a"
       enabled: true
-      gateways:
-        - istio-system/public
-    domain: gamewarden.example.com
-    extraInitContainers: |
-      - name: import
-        image: registry1.dso.mil/ironbank/opensource/keycloak/keycloak:25.0.6
-        command:
-          - /opt/keycloak/bin/kc.sh
-          - import
-          - --dir=/opt/keycloak/data/import
-        volumeMounts:
-          - mountPath: /opt/keycloak/data/import
-            name: realm
-    command:
-      - /opt/keycloak/bin/kc.sh
-      - start
-      - --import-realm
-    istioResources:
-      virtualServices:
-        - name: main
-          port: 8443
-          tls: true
-      peerAuthentications:
-        - name: keycloak
-          mode: DISABLE
-    extraEnvVars:
-      - name: KEYCLOAK_PROXY_HEADERS
-        value: xforwarded
-      - name: KEYCLOAK_HOSTNAME_STRICT
-        value: "false"
-      - name: KEYCLOAK_HTTP_ENABLED
-        value: "true"
+    values:
+      server:
+        extraArgs:
+        - --insecure
+        - --repo-server-plaintext
+      repoServer:
+        extraArgs:
+        - --disable-tls
+      controller:
+        extraArgs:
+        - --repo-server-plaintext
+      redis-bb:
+        networkPolicy:
+          enabled: false
+
+
+
+  # Keycloak Configuration
+  keycloak:
+    sourceType: helmRepo
+    enabled: true
+    values:
+      replicas: 2
+      resources:
+        requests:
+          cpu: 500m
+          memory: 1Gi
+        limits:
+          cpu: 2000m
+          memory: 2Gi
+      persistence:
+        deployPostgres: true
+      database:
+        storageClass: gp3
+        size: 20Gi
+      volumeMounts:
+        - mountPath: /opt/keycloak/data/import
+          name: realm
+      volumes:
+        - name: realm
+          configMap:
+            name: gamewarden-realm
+      # Update hostname for your domain
+      hostname: gamewarden.eaglevalley.dev
+      istio:
+        enabled: true
+        gateways:
+          - istio-system/public
+      domain: gamewarden.eaglevalley.dev
+      extraInitContainers: |
+        - name: import
+          image: registry1.dso.mil/ironbank/opensource/keycloak/keycloak:25.0.6
+          command:
+            - /opt/keycloak/bin/kc.sh
+            - import
+            - --dir=/opt/keycloak/data/import
+          volumeMounts:
+            - mountPath: /opt/keycloak/data/import
+              name: realm
+      command:
+        - /opt/keycloak/bin/kc.sh
+        - start
+        - --import-realm
+      istioResources:
+        virtualServices:
+          - name: main
+            port: 8443
+            tls: true
+        peerAuthentications:
+          - name: keycloak
+            mode: DISABLE
+      extraEnvVars:
+        - name: KEYCLOAK_PROXY_HEADERS
+          value: xforwarded
+        - name: KEYCLOAK_HOSTNAME_STRICT
+          value: "false"
+        - name: KEYCLOAK_HTTP_ENABLED
+          value: "true"
+
+  metricsServer:
+    sourceType: helmRepo
+    enabled: auto
+    values:
+      args:
+      - --kubelet-insecure-tls
