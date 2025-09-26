@@ -260,6 +260,122 @@ addons:
         - name: KEYCLOAK_HTTP_ENABLED
           value: "true"
 
+    values:
+      serviceAccount:
+        automountServiceAccountToken: false
+      replicas: 1
+      args:
+        - "start-dev"
+        - --import-realm
+      extraEnv: |-
+        - name: KC_HTTPS_CLIENT_AUTH
+          value: request
+        - name: KC_HOSTNAME
+          value: login.gw.eaglevalley.dev
+        - name: KC_LOG_LEVEL
+          value: "org.keycloak.events:DEBUG,org.infinispan:INFO,org.jgroups:INFO"
+        - name: QUARKUS_HTTP_ACCESS_LOG_ENABLED
+          value: "true"
+        - name: KC_HOSTNAME_STRICT
+          value: "false"
+        - name: KC_HOSTNAME_STRICT_HTTPS
+          value: "false"
+        - name: KC_SPI_X509CERT_LOOKUP_PROVIDER
+          value: nginx
+        - name: KC_SPI_X509CERT_LOOKUP_NGINX_SSL_CLIENT_CERT
+          value: istio-mtls-client-certificate
+        - name: KC_SPI_X509CERT_LOOKUP_NGINX_SSL_CLIENT_CERT_CHAIN_PREFIX
+          value: UNUSED
+        - name: KC_PROXY_HEADERS
+          value: xforwarded
+        - name: KC_PROXY_ADDRESS_FORWARDING
+          value: "true"
+        - name: KC_HTTP_ENABLED
+          value: "true"
+        - name: QUANTUM_EMITTER_NATS_SERVER
+          value: nats
+      extraInitContainers: |-
+        - name: plugin
+          image: registry1.dso.mil/ironbank/big-bang/p1-keycloak-plugin:3.5.7
+          command:
+          - sh
+          - -c
+          - |
+            cp /app/p1-keycloak-plugin.jar /init
+            ls -l /init
+          securityContext:
+            capabilities:
+              drop:
+                - ALL
+          volumeMounts:
+          - name: plugin
+            mountPath: "/init"
+      extraPorts:
+        - containerPort: 7800
+          name: tcp
+          protocol: TCP
+        - containerPort: 57800
+          name: tcp-fd
+          protocol: TCP
+      extraVolumeMounts: |-
+        - name: plugin
+          mountPath: /opt/keycloak/providers/p1-keycloak-plugin.jar
+          subPath: p1-keycloak-plugin.jar
+        - name: quarkusproperties
+          mountPath: /opt/keycloak/conf/quarkus.properties
+          subPath: quarkus.properties
+        - name: realm
+          mountPath: /opt/keycloak/data/import/realm.json
+          subPath: realm.json
+          readOnly: true
+      extraVolumes: |-
+        - name: plugin
+          emptyDir: {}
+        - name: quarkusproperties
+          secret:
+            secretName: keycloak-quarkusproperties
+            defaultMode: 0777
+        - name: realm
+          configMap:
+            name: gamewarden-realm
+      hostname: gw.local
+      istio:
+        enabled: true
+        keycloak:
+          gateways:
+            - istio-system/public
+          hosts:
+            - login.gw.local
+      proxy:
+        mode: xforwarded
+      secrets:
+        env:
+          stringData:
+            JAVA_OPTS_APPEND: -Djgroups.dns.query=keycloak-headless.keycloak.svc.cluster.local
+        quarkusproperties:
+          stringData:
+            quarkus.properties: |-
+              quarkus.http.non-application-root-path=/
+              quarkus.kc-routing.path-redirect./=/auth/realms/gamewarden/account
+              quarkus.kc-routing.path-redirect./auth=/auth/realms/gamewarden/account
+              quarkus.kc-routing.path-redirect./register=/auth/realms/gamewarden/protocol/openid-connect/registrations?client_id=account&response_type=code
+              quarkus.kc-routing.path-prefix./oauth/authorize=/auth/realms/gamewarden/protocol/openid-connect/auth
+              quarkus.kc-routing.path-filter./api/v4/user=/auth/realms/gamewarden/protocol/openid-connect/userinfo
+              quarkus.kc-routing.path-filter./oauth/token=/auth/realms/gamewarden/protocol/openid-connect/token
+              quarkus.kc-routing.path-recursive-block./metrics=8443
+              quarkus.kc-routing.path-recursive-block./health=8443
+              quarkus.http.cors=true
+              quarkus.http.cors.methods=OPTIONS,POST,GET,PATCH,PUT,DELETE
+              quarkus.http.cors.headers=Content-Disposition,Access-Control-Allow-Headers,Content-Type,Authorization,X-Requested-With
+              quarkus.http.cors.access-control-max-age=24H
+              quarkus.http.cors.access-control-allow-credentials=true
+              quarkus.http.cors.origins=*
+      service:
+        extraPorts: null
+        httpPort: 8080
+
+
+
   metricsServer:
     sourceType: helmRepo
     enabled: auto
