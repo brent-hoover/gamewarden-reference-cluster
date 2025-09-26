@@ -66,12 +66,28 @@
 
 ## Deployment Steps
 
-1. **Install SOPS Age Key**
+1. **Create Registry1 Credentials Secret**
 
-   If you have an existing Age key file (e.g., `keys.txt`):
+   You need a Registry1 account to pull Big Bang images. Register at https://registry1.dso.mil if you don't have one.
+
    ```bash
    # Create the bigbang namespace
    kubectl create namespace bigbang
+
+   # Create the secret with your Registry1 credentials
+   kubectl create secret docker-registry private-registry \
+     --namespace=bigbang \
+     --docker-server=registry1.dso.mil \
+     --docker-username=YOUR_REGISTRY1_USERNAME \
+     --docker-password=YOUR_REGISTRY1_PASSWORD \
+     --docker-email=YOUR_EMAIL
+   ```
+
+2. **Install SOPS Age Key**
+
+   If you have an existing Age key file (e.g., `keys.txt`):
+   ```bash
+   # Namespace already created in step 1
 
    # Create the secret from your existing key file
    kubectl create secret generic sops-age \
@@ -84,8 +100,7 @@
    # Generate new key
    age-keygen -o age.agekey
 
-   # Create Kubernetes secret
-   kubectl create namespace bigbang
+   # Create Kubernetes secret (namespace already created in step 1)
    cat age.agekey | kubectl create secret generic sops-age \
      --namespace=bigbang \
      --from-file=age.agekey=/dev/stdin
@@ -96,14 +111,14 @@
     - The public key in `.sops.yaml` must match your private key
     - You'll need this key to encrypt/decrypt secrets in the future
 
-2. **Update Configuration**
+3. **Update Configuration**
     - Edit `eks-prod/configmap.yaml`:
         - Update S3 region and bucket name for Loki
         - Update domain names and URLs
         - Update SSO client secrets
     - Update `bootstrap.yaml` to point to `./eks-prod` instead of `./localdev`
 
-3. **Bootstrap GitOps**
+4. **Bootstrap GitOps**
    ```bash
    # Fork this repository and update the URL in bootstrap.yaml
 
@@ -111,17 +126,17 @@
    kubectl apply -f bootstrap.yaml
 
    # Watch Flux sync status
-   flux get all -A --watch
+   flux get kustomizations -A --watch
    ```
 
-4. **Configure DNS**
+5. **Configure DNS**
     - Get the Load Balancer URL:
       ```bash
       kubectl get svc -n istio-system istio-ingressgateway
       ```
     - Create Route53 records or update your DNS to point to the NLB
 
-5. **Verify Installation**
+6. **Verify Installation**
    ```bash
    # Check all pods are running
    kubectl get pods -A
